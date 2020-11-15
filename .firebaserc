@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "slammtrains-2d580"
+  },
+  "targets": {
+    "slammtrains-2d580": {
+      "hosting": {
+        "employee": [
+          "slammtrains-employee"
+        ]
+      }
+    }
+  }
+}
