@@ -15,6 +15,12 @@ new Vue({
   render: h => h(App)
 }).$mount('#app');
 
+Array.purify = function (array) {
+  return array.filter(element => {
+    return (element !== null) && (element !== undefined);
+  });
+};
+
 Array.equalElements = function (_arr1,_arr2) {
   if (!Array.isArray(_arr1) || !Array.isArray(_arr2) || (_arr1.length !== _arr2.length)) {
       return false;

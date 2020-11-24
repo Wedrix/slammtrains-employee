@@ -74,7 +74,7 @@
                                 <div class="text-h6 primary--text">Course List</div>
                                 <v-row>
                                     <v-col
-                                        v-for="course in company.plan.courses"
+                                        v-for="course in courses"
                                         :key="course.id"
                                         cols="12"
                                         sm="6"
@@ -117,6 +117,9 @@
                 'employee',
                 'company',
             ]),
+            courses() {
+                return Array.purify(this.company.plan.courses);
+            }
         },
         methods: {
             async logout() {
