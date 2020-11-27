@@ -10,7 +10,7 @@ import 'firebase/firestore';
 
 Vue.use(VueRouter);
 
-const authValidation = (to, from, next) => {
+const authorize = (to, from, next) => {
   const redirect = () => {
     if (firebase.auth().isSignInWithEmailLink(location.href)) {
       next({ path: '/auth', query: to.query });
@@ -34,7 +34,7 @@ const authValidation = (to, from, next) => {
   });
 };
 
-const guestValidation = (to, from, next) => {
+const authorizeGuest = (to, from, next) => {
   firebase.auth().onAuthStateChanged(user => {
     if (user) {
       user.getIdTokenResult().then(result => {
@@ -58,15 +58,15 @@ const routes = [
       {
         path: '/',
         name: 'Auth',
-        component: () => import('../views/pages/Auth.vue'),
+        component: () => import('@/views/pages/Auth.vue'),
       },
       {
         path: 'unauthorized',
         name: 'Unauthorized',
-        component: () => import('../views/pages/Unauthorized.vue'),
+        component: () => import('@/views/pages/Unauthorized.vue'),
       },
     ],
-    beforeEnter: guestValidation,
+    beforeEnter: authorizeGuest,
   },
   {
     path: '/',
@@ -75,15 +75,15 @@ const routes = [
       {
         path: '/',
         name: 'Home',
-        component: () => import('../views/pages/Home.vue'),
+        component: () => import('@/views/pages/Home.vue'),
       },
       {
         path: '/courses/:courseId',
         name: 'Course',
-        component: () => import('../views/pages/Course.vue'),
+        component: () => import('@/views/pages/Course.vue'),
       },
     ],
-    beforeEnter: authValidation,
+    beforeEnter: authorize,
   },
 ];
 

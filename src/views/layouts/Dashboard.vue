@@ -11,7 +11,7 @@
         created() {
             firebase.auth().onAuthStateChanged(user => {
                 if (user) {
-                    this.$store.dispatch('initialize', { user });
+                    this.$store.dispatch('initialize');
                 } else {
                     this.$store.dispatch('clear');
                 }

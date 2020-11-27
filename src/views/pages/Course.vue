@@ -1,17 +1,25 @@
 <template>
     <v-app>
-        <v-app-bar app flat dark color="background" class="textured-background" style="border-bottom: thin solid rgba(0, 0, 0, 0.12) !important">
-            <div class="text-h5">
+        <v-app-bar app flat color="white" style="border-bottom: thin solid rgba(0, 0, 0, 0.12) !important">
+            <v-btn 
+                icon 
+                to="/"
+                class="mx-4"
+                color="secondary">
+                    <v-icon size="30">mdi-home-variant</v-icon>
+            </v-btn>
+            <div class="text-h5 primary--text">
                 <span v-if="test">{{ `Test: ${activeModule.name}` }}</span>
                 <span v-if="activeLesson">{{ activeLesson.title }}</span>
             </div>
             <v-spacer/>
             <v-progress-circular v-if="activeLesson && (activeLesson.contentType === 'html')" 
-                color="amber darken-1"
+                color="secondary"
+                class="mx-4"
                 :size="50"
                 :rotate="-90"
                 :value="(lessonTimer.secondsRemaining / computeLessonDurationInSeconds(activeLesson) * 100)">
-                    <div class="text-caption white--text">
+                    <div class="text-caption primary--text">
                         {{ lessonTimer.secondsRemaining | toTimer }}
                     </div>
             </v-progress-circular>
@@ -307,7 +315,24 @@
                 max-width="600">
                     <v-sheet color="white" class="pa-12" rounded>
                         <div class="secondary--text text-center">
-                            <div class="text-h5">Kindly complete the lessons in the module to take the test.</div>
+                            <div class="text-h5">Kindly Complete The Lessons In The Module To Take The Test</div>
+                        </div>
+                    </v-sheet>
+            </v-dialog>
+
+            <v-dialog
+                v-model="accessBlocked"
+                max-width="600"
+                persistent>
+                    <v-sheet color="white" class="pa-12" rounded>
+                        <div class="secondary--text text-center">
+                            <div class="text-h5">You Do Not Have Access To This Course</div>
+                            <v-btn 
+                                color="primary" 
+                                class="mt-6" 
+                                to="/">
+                                    Home
+                            </v-btn>
                         </div>
                     </v-sheet>
             </v-dialog>
@@ -341,7 +366,7 @@
                                                     <v-progress-circular 
                                                         :value="courseModule.percentageCompleted"
                                                         :rotate="-90"
-                                                        color="amber darken-1">
+                                                        color="secondary">
                                                             <span class="white--text">{{ index + 1 }}</span>
                                                     </v-progress-circular>
                                                 </v-col>
@@ -366,7 +391,7 @@
                                                     <template 
                                                         v-for="(lesson, index) in courseModule.lessons">
                                                             <v-list-item 
-                                                                color="amber darken-1"
+                                                                color="secondary"
                                                                 style="cursor: pointer;"
                                                                 :key="`lesson-${index}`"
                                                                 :input-value="!test && activeLesson && (activeLesson.title === lesson.title)"
@@ -377,7 +402,7 @@
                                                                         class="text-caption">
                                                                             <v-col cols="1">
                                                                                 <v-icon
-                                                                                    :color="!lesson.isCompleted ? 'grey' : 'amber darken-1'"
+                                                                                    :color="!lesson.isCompleted ? 'grey' : 'secondary'"
                                                                                     small>mdi-check-circle</v-icon>
                                                                             </v-col>
                                                                             <v-col cols="1">
@@ -403,7 +428,7 @@
                                                             <v-divider :key="`section-divider-${index}`"/>
                                                     </template>
                                                     <v-list-item 
-                                                        color="amber darken-1"
+                                                        color="secondary"
                                                         style="cursor: pointer;"
                                                         :input-value="test && activeModule && (activeModule.name === courseModule.name)"
                                                         @click="setTest(courseModule.test)"
@@ -413,7 +438,7 @@
                                                                 class="text-caption">
                                                                     <v-col cols="1">
                                                                         <v-icon
-                                                                            :color="!courseModule.test.isTaken ? 'grey' : 'amber darken-1'"
+                                                                            :color="!courseModule.test.isTaken ? 'grey' : 'secondary'"
                                                                             small>mdi-check-circle</v-icon>
                                                                     </v-col>
                                                                     <v-col cols="1">
@@ -433,7 +458,7 @@
                 </v-expansion-panels>
         </v-navigation-drawer>
 
-        <v-footer app inset dark color="background" class="textured-background" style="border-top: thin solid rgba(0, 0, 0, 0.12) !important;">
+        <v-footer app inset color="white" style="border-top: thin solid rgba(0, 0, 0, 0.12) !important;">
             <div class="text-caption">&#169;2020 Slamm Technologies</div>
         </v-footer>
     </v-app>
@@ -443,7 +468,7 @@
     import firebase from '@/firebase';
     import 'firebase/functions';
 
-    import { mapState, mapGetters } from 'vuex';
+    import { mapState } from 'vuex';
 
     import { cloneDeep } from 'lodash';
 
@@ -519,8 +544,10 @@
         },
         computed: {
             ...mapState([
+                'employee',
+            ]),
+            ...mapState([
                 'company',
-                'employee'
             ]),
             answersAreCorrect() {
                 if (this.activeQuestion?.answers && this.answers) {
@@ -542,6 +569,23 @@
             },
             testScore() {
                 return (this.testResult.correctCount / this.test.questions.length * 100);
+            },
+            accessBlocked() {
+                if (this.company?.accessBlockedAt) {
+                    return true;
+                }
+
+                if (this.company?.plan?.courses) {
+                    const courseId = this.$route.params.courseId;
+
+                    const courseIds = this.company.plan.courses.map(course => {
+                        return course.id;
+                    });
+
+                    return (!courseIds.includes(courseId));
+                }
+
+                return false;
             },
         },
         watch: {
@@ -1020,7 +1064,7 @@
 
                 return `${minutesString}:${secondsString}`;
             }
-        }
+        },
     }
 </script>
 

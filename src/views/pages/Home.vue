@@ -17,7 +17,9 @@
 
                             <v-spacer/>
 
-                            <v-avatar tile v-if="company.logo.src">
+                            <v-avatar v-if="company"
+                                size="40"
+                                tile>
                                 <img :src="company.logo.src"/>
                             </v-avatar>
 
@@ -107,19 +109,14 @@
             'notification': Notification,
             'course-swatch': CourseSwatch,
         },
-        data() {
-            return {
-                //
-            };
-        },
         computed: {
             ...mapState([
                 'employee',
                 'company',
             ]),
-            courses() {
-                return Array.purify(this.company.plan.courses);
-            }
+            ...mapGetters([
+                'courses',
+            ]),
         },
         methods: {
             async logout() {

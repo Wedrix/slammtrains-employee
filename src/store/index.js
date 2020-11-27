@@ -2,9 +2,8 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 
 import firebase from '@/firebase';
+import 'firebase/functions';
 import 'firebase/firestore';
-
-import moment from 'moment';
 
 import { vuexfireMutations, firestoreAction } from 'vuexfire';
 import { firestoreOptions } from 'vuexfire';
@@ -31,21 +30,7 @@ const init = {
     timeout: 3000,
     tag: '',
   },
-  company: {
-    logo: {
-      src: '',
-    },
-    name: '',
-    plan: {
-      id: '',
-      name: '',
-      courses: [],
-      licensedNumberOfEmployees: null,
-      description: '',
-      billing: null,
-    },
-    subscription: null,
-  },
+  company: null,
   employee: {
     name: '',
     uid: '',
@@ -58,43 +43,12 @@ const init = {
 export default new Vuex.Store({
   state: cloneDeep(init),
   getters: {
-    subscriptionHasExpired(state) {
-      if (state.company.plan?.billing) {
-        if (state.company.subscription) {
-          const subscriptionExpiresAt = moment(state.company.subscription.expiresAt);
-  
-          return subscriptionExpiresAt.isBefore();
-        }
-      }
+    courses(state) {
+      if (state.company?.plan?.courses) {
+        return Array.purify(state.company.plan.courses);
+      } 
 
-      return false;
-    },
-    planNotSet(state) {
-      if (!state.company.plan) {
-        return true;
-      }
-
-      return false;
-    },
-    subscriptionShouldBeRenewed(state) {
-      if (state.company.plan?.billing) {
-        if (state.company.subscription) {
-          const subscriptionExpiresAt = moment(state.company.subscription.expiresAt);
-  
-          return (subscriptionExpiresAt.diff(moment(), 'days') < 3);
-        }
-      }
-
-      return false;
-    },
-    unsubscribed(state) {
-      if (state.company.plan?.billing) {
-        if (!state.company.subscription) {
-          return true;
-        }
-      }
-
-      return false;
+      return [];
     },
   },
   mutations: {
@@ -113,30 +67,17 @@ export default new Vuex.Store({
     }
   },
   actions: {
-    initialize: firestoreAction(async ({ bindFirestoreRef }, { user }) => {
-      const employee = await firebase.firestore()
-                                    .collectionGroup('employees')
-                                    .where('uid', '==', user.uid)
-                                    .get()
-                                    .then(employeesSnapshot => {
-                                      const employeeSnapshot = employeesSnapshot.docs[0];
+    initialize: firestoreAction(async ({ bindFirestoreRef }) => {
+      const resolveEmployee = firebase.functions()
+                                      .httpsCallable('resolveEmployee');
 
-                                      const employee = Object.assign(employeeSnapshot.data(), { id: employeeSnapshot.id });
+      const employee = (await resolveEmployee()).data.employee;
 
-                                      return employee;
-                                    });
-
-      const companyRef = employee.company;
-
-      const company = await companyRef.get()
-                                      .then(companySnapshot => {
-                                        const company = Object.assign(companySnapshot.data(), { id: companySnapshot.id });
-
-                                        return company;
-                                      });
+      const companyRef = await firebase.firestore()
+                                      .doc(`/companies/${employee.company.id}`);
 
       const employeeRef = firebase.firestore()
-                                  .doc(`companies/${company.id}/employees/${employee.id}`);
+                                  .doc(`/companies/${employee.company.id}/employees/${employee.id}`);
 
       await bindFirestoreRef('employee', employeeRef, { wait: true });
   
