@@ -8,17 +8,14 @@
                 color="secondary">
                     <v-icon size="30">mdi-home-variant</v-icon>
             </v-btn>
-            <div class="text-h5 primary--text">
-                <span v-if="test">{{ `Test: ${activeModule.name}` }}</span>
-                <span v-if="activeLesson">{{ activeLesson.title }}</span>
-            </div>
+            <div class="text-h5 primary--text">{{ activeLesson.title }}</div>
             <v-spacer/>
             <v-progress-circular v-if="activeLesson && (activeLesson.contentType === 'html')" 
                 color="secondary"
                 class="mx-4"
                 :size="50"
                 :rotate="-90"
-                :value="(lessonTimer.secondsRemaining / computeLessonDurationInSeconds(activeLesson) * 100)">
+                :value="(lessonTimer.secondsRemaining / activeLesson.durationInSeconds * 100)">
                     <div class="text-caption primary--text">
                         {{ lessonTimer.secondsRemaining | toTimer }}
                     </div>
@@ -34,256 +31,156 @@
                         color="white" 
                         height="100%"
                         width="100%">
-                            <template v-if="test">
-                                <v-progress-linear
-                                    color="secondary"
-                                    :height="6"
-                                    :value="testProgress"/>
+                            <div 
+                                v-if="activeLesson.contentType === 'html'" 
+                                class="pa-6 text-h4 primary--text" 
+                                style="line-height:3rem;"
+                                v-html="activeLesson.content.html"/>
 
-                                <div class="py-6 px-12">
-                                    <template v-if="activeQuestion">
-                                        <v-row>
-                                            <v-col cols="12" md="9">
-                                                <v-form ref="questionForm" @submit.prevent="answerQuestion()">
-                                                    <v-row>
-                                                        <v-col cols="12">
-                                                            <div class="text-h4 secondary--text">
-                                                                <span>(Qn.{{ test.questions.indexOf(activeQuestion) + 1 }})</span>
-                                                                {{ activeQuestion.question }}
-                                                            </div>
-                                                        </v-col>
-                                                        <v-col 
-                                                            cols="12">
-                                                                <v-checkbox 
-                                                                    v-for="(option, index) in activeQuestion.options"
-                                                                    :key="`answer-${index}`"
-                                                                    :value="option"
-                                                                    :disabled="isShowingAnswersWithExplanation"
-                                                                    v-model="answers">
-                                                                        <template v-slot:label>
-                                                                            <div>
-                                                                                <div class="text-h5 primary--text">{{ option }}</div>
-                                                                            </div>
-                                                                        </template>
-                                                                </v-checkbox>
-                                                        </v-col>
-                                                        <v-col v-if="!isShowingAnswersWithExplanation" cols="12">
-                                                            <v-btn 
-                                                                class="mr-4" 
-                                                                color="primary" 
-                                                                outlined 
-                                                                x-large 
-                                                                @click="testResult.skippedCount++; advance()">
-                                                                    Skip
-                                                            </v-btn>
-                                                            
-                                                            <v-btn 
-                                                                type="submit" 
-                                                                color="primary" 
-                                                                x-large>
-                                                                    Answer
-                                                            </v-btn>
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-form>
-                                            </v-col>
-                                            <v-col cols="12" md="3" class="d-flex" style="align-items:center;justify-content:center;">
-                                                <v-progress-circular 
-                                                    color="red darken-1" 
-                                                    :size="250" 
-                                                    :width="10"
-                                                    :rotate="-90"
-                                                    :value="(questionTimer.secondsRemaining / activeQuestion.durationInSeconds * 100)">
-                                                        <div class="text-h3">
-                                                            {{ questionTimer.secondsRemaining }}
-                                                        </div>
-                                                </v-progress-circular>
-                                            </v-col>
-                                        </v-row>
-                                        
-                                        <v-divider v-if="isShowingAnswersWithExplanation"/>
+                            <video 
+                                v-if="activeLesson.contentType === 'video'" 
+                                controls 
+                                :src="activeLesson.content.video.src" 
+                                width="100%" 
+                                height="100%"
+                                style="background-color:black"
+                                ref="video"/>
 
-                                        <div v-if="isShowingAnswersWithExplanation">
+                            <template 
+                                v-if="activeLesson.contentType === 'questions'">
+                                    <v-progress-linear
+                                        color="secondary"
+                                        :height="6"
+                                        :value="percentageQuestionsAnswered"/>
+
+                                    <div class="py-6 px-12">
+                                        <template v-if="activeQuestion">
                                             <v-row>
-                                                <v-col 
-                                                    cols="12" 
-                                                    md="3">
-                                                        <v-sheet 
-                                                            class="pa-6" 
-                                                            v-if="answersAreCorrect" 
-                                                            color="green lighten-5"
-                                                            style="display:flex;flex-direction:column;align-items:center;">
-                                                                <v-avatar color="white" size="120">
-                                                                    <v-icon
-                                                                        dark
-                                                                        color="green darken-1" 
-                                                                        size="120">
-                                                                            mdi-check-circle-outline
-                                                                    </v-icon>
-                                                                </v-avatar>
-                                                                <div class="text-h6 pt-2 green--text text--darken-1">Correct!</div>
-                                                        </v-sheet>
-                                                        <v-sheet 
-                                                            class="pa-6" 
-                                                            v-else 
-                                                            color="red lighten-5"
-                                                            style="display:flex;flex-direction:column;align-items:center;">
-                                                                <v-avatar color="white" size="120">
-                                                                    <v-icon
-                                                                        dark
-                                                                        color="red darken-1" 
-                                                                        size="120">
-                                                                            mdi-close-circle-outline
-                                                                    </v-icon>
-                                                                </v-avatar>
-                                                                <div class="text-h6 pt-2 red--text text--darken-1">Wrong!</div>
-                                                        </v-sheet>
-                                                </v-col>
                                                 <v-col cols="12" md="9">
-                                                    <div class="px-6">
+                                                    <v-form ref="questionForm" @submit.prevent="answerQuestion()">
                                                         <v-row>
                                                             <v-col cols="12">
-                                                                <div class="pb-4">
-                                                                    <div class="text-h4 secondary--text pb-3">Correct Answer:</div>
-                                                                    <div class="text-h5 primary--text">
-                                                                        <ul>
-                                                                            <li class="pb-2" v-for="(answer, index) in activeQuestion.answers" :key="`answer-${index}`">
-                                                                                {{ answer }}
-                                                                            </li>
-                                                                        </ul>
-                                                                    </div>
+                                                                <div class="text-h4 secondary--text">
+                                                                    <span>(Qn.{{ activeLesson.content.questions.indexOf(activeQuestion) + 1 }})</span>
+                                                                    {{ activeQuestion.question }}
                                                                 </div>
                                                             </v-col>
-                                                            <v-col cols="12">
-                                                                <div class="pb-4">
-                                                                    <div class="text-h4 secondary--text pb-3">Explanation:</div>
-                                                                    <div class="text-h5 primary--text">{{ activeQuestion.explanation }}</div>
-                                                                </div>
+                                                            <v-col 
+                                                                cols="12">
+                                                                    <v-checkbox 
+                                                                        v-for="(option, index) in activeQuestion.options"
+                                                                        :key="`answer-${index}`"
+                                                                        :value="option"
+                                                                        :disabled="isShowingAnswersWithExplanation"
+                                                                        v-model="answers">
+                                                                            <template v-slot:label>
+                                                                                <div>
+                                                                                    <div class="text-h5 primary--text">{{ option }}</div>
+                                                                                </div>
+                                                                            </template>
+                                                                    </v-checkbox>
                                                             </v-col>
-                                                            <v-col cols="12">
-                                                                <div class="pb-4">
-                                                                    <v-btn 
-                                                                        x-large 
-                                                                        color="primary" 
-                                                                        @click="advance()">
-                                                                            Next
-                                                                    </v-btn>
-                                                                </div>
+                                                            <v-col v-if="!isShowingAnswersWithExplanation" cols="12">
+                                                                <v-btn 
+                                                                    type="submit" 
+                                                                    color="primary" 
+                                                                    x-large>
+                                                                        Answer
+                                                                </v-btn>
                                                             </v-col>
                                                         </v-row>
-                                                    </div>
+                                                    </v-form>
                                                 </v-col>
-                                            </v-row>
-                                        </div>
-                                    </template>
-
-                                    <template v-if="testIsCompleted">
-                                        <v-row>
-                                            <v-col cols="12">
-                                                <div class="text-h3 primary--text">Test Results</div>
-                                            </v-col>
-                                            <v-col cols="12" md="6"
-                                                class="d-flex" 
-                                                style="justify-content:center;align-items:center;">
+                                                <v-col cols="12" md="3" class="d-flex" style="align-items:center;justify-content:center;">
                                                     <v-progress-circular 
-                                                        :color="
-                                                            (testScore > 30 && testScore <= 70) 
-                                                                ? 'accent2' 
-                                                                : ((testScore > 70 && testScore <= 100) 
-                                                                    ? 'secondary' 
-                                                                    : 'accent')" 
-                                                        :size="450" 
+                                                        color="red darken-1" 
+                                                        :size="250" 
                                                         :width="10"
                                                         :rotate="-90"
-                                                        :value="testScore">
+                                                        :value="(questionTimer.secondsRemaining / activeQuestion.durationInSeconds * 100)">
                                                             <div class="text-h3">
-                                                                {{ testScore }}%
+                                                                {{ questionTimer.secondsRemaining }}
                                                             </div>
                                                     </v-progress-circular>
-                                            </v-col>
-                                            <v-col cols="12" md="5">
-                                                <v-row align="center">
-                                                    <v-col cols="12" md="6">
-                                                        <v-sheet 
-                                                            class="pa-12" 
-                                                            style="display:flex;flex-direction:column;justify-content:center;align-items:center;" 
-                                                            color="green darken-2" 
-                                                            rounded>
-                                                                <div class="white--text text-h3">{{ testResult.correctCount }}</div>
-                                                                <div class="white--text text-h5">Correct</div>
-                                                        </v-sheet>
+                                                </v-col>
+                                            </v-row>
+                                            
+                                            <v-divider v-if="isShowingAnswersWithExplanation"/>
+
+                                            <div v-if="isShowingAnswersWithExplanation">
+                                                <v-row>
+                                                    <v-col 
+                                                        cols="12" 
+                                                        md="3">
+                                                            <v-sheet 
+                                                                class="pa-6" 
+                                                                v-if="answersAreCorrect" 
+                                                                color="green lighten-5"
+                                                                style="display:flex;flex-direction:column;align-items:center;">
+                                                                    <v-avatar color="white" size="120">
+                                                                        <v-icon
+                                                                            dark
+                                                                            color="green darken-1" 
+                                                                            size="120">
+                                                                                mdi-check-circle-outline
+                                                                        </v-icon>
+                                                                    </v-avatar>
+                                                                    <div class="text-h6 pt-2 green--text text--darken-1">Correct!</div>
+                                                            </v-sheet>
+                                                            <v-sheet 
+                                                                class="pa-6" 
+                                                                v-else
+                                                                color="red lighten-5"
+                                                                style="display:flex;flex-direction:column;align-items:center;">
+                                                                    <v-avatar color="white" size="120">
+                                                                        <v-icon
+                                                                            dark
+                                                                            color="red darken-1" 
+                                                                            size="120">
+                                                                                mdi-close-circle-outline
+                                                                        </v-icon>
+                                                                    </v-avatar>
+                                                                    <div class="text-h6 pt-2 red--text text--darken-1">Wrong!</div>
+                                                            </v-sheet>
                                                     </v-col>
-                                                    <v-col cols="12" md="6">
-                                                        <v-sheet 
-                                                            class="pa-12" 
-                                                            style="display:flex;flex-direction:column;justify-content:center;align-items:center;" 
-                                                            color="blue darken-2" 
-                                                            rounded>
-                                                                <div class="white--text text-h3">{{ testResult.skippedCount }}</div>
-                                                                <div class="white--text text-h5">Skipped</div>
-                                                        </v-sheet>
-                                                    </v-col>
-                                                    <v-col cols="12" md="6">
-                                                        <v-sheet 
-                                                            class="pa-12" 
-                                                            style="display:flex;flex-direction:column;justify-content:center;align-items:center;" 
-                                                            color="red darken-2" 
-                                                            rounded>
-                                                                <div class="white--text text-h3">{{ testResult.incorrectCount }}</div>
-                                                                <div class="white--text text-h5">Incorrect</div>
-                                                        </v-sheet>
-                                                    </v-col>
-                                                    <v-col cols="12" md="6">
-                                                        <v-sheet 
-                                                            class="pa-12" 
-                                                            style="display:flex;flex-direction:column;justify-content:center;align-items:center;" 
-                                                            color="purple darken-2" 
-                                                            rounded>
-                                                                <div class="white--text text-h3">{{ testResult.missedCount }}</div>
-                                                                <div class="white--text text-h5">Missed</div>
-                                                        </v-sheet>
-                                                    </v-col>
-                                                    <v-col cols="12" class="pt-4">
-                                                        <v-btn 
-                                                            @click="advance()" 
-                                                            color="primary"
-                                                            class="mb-4"
-                                                            block
-                                                            x-large>
-                                                                Next Module
-                                                        </v-btn>
-                                                        <v-btn 
-                                                            @click="retakeTest()"
-                                                            color="primary"
-                                                            outlined
-                                                            block
-                                                            x-large>
-                                                                <v-icon class="mr-2">mdi-redo</v-icon>
-                                                                Retake
-                                                        </v-btn>
+                                                    <v-col cols="12" md="9">
+                                                        <div class="px-6">
+                                                            <v-row>
+                                                                <v-col cols="12">
+                                                                    <div class="pb-4">
+                                                                        <div class="text-h4 secondary--text pb-3">Correct Answer:</div>
+                                                                        <div class="text-h5 primary--text">
+                                                                            <ul>
+                                                                                <li class="pb-2" v-for="(answer, index) in activeQuestion.answers" :key="`answer-${index}`">
+                                                                                    {{ answer }}
+                                                                                </li>
+                                                                            </ul>
+                                                                        </div>
+                                                                    </div>
+                                                                </v-col>
+                                                                <v-col cols="12">
+                                                                    <div class="pb-4">
+                                                                        <div class="text-h4 secondary--text pb-3">Explanation:</div>
+                                                                        <div class="text-h5 primary--text">{{ activeQuestion.explanation }}</div>
+                                                                    </div>
+                                                                </v-col>
+                                                                <v-col cols="12">
+                                                                    <div class="pb-4">
+                                                                        <v-btn 
+                                                                            x-large 
+                                                                            color="primary" 
+                                                                            @click="advance()">
+                                                                                Next
+                                                                        </v-btn>
+                                                                    </div>
+                                                                </v-col>
+                                                            </v-row>
+                                                        </div>
                                                     </v-col>
                                                 </v-row>
-                                            </v-col>
-                                        </v-row>
-                                    </template>
-                                </div>
-                            </template>
-
-                            <template v-if="activeLesson">
-                                <div 
-                                    v-if="activeLesson.contentType === 'html'" 
-                                    class="pa-6 text-h4 primary--text" 
-                                    style="line-height:3rem;"
-                                    v-html="activeLesson.html"/>
-
-                                <video 
-                                    v-if="activeLesson.contentType === 'video'" 
-                                    controls 
-                                    :src="activeLesson.video.src" 
-                                    width="100%" 
-                                    height="100%"
-                                    style="background-color:black"
-                                    ref="video"/>
+                                            </div>
+                                        </template>
+                                    </div>
                             </template>
                     </v-sheet>
             </v-container>
@@ -311,16 +208,6 @@
             </v-dialog>
 
             <v-dialog
-                v-model="isShowingMustCompleteModuleDialog"
-                max-width="600">
-                    <v-sheet color="white" class="pa-12" rounded>
-                        <div class="secondary--text text-center">
-                            <div class="text-h5">Kindly Complete The Lessons In The Module To Take The Test</div>
-                        </div>
-                    </v-sheet>
-            </v-dialog>
-
-            <v-dialog
                 v-model="accessBlocked"
                 max-width="600"
                 persistent>
@@ -331,7 +218,7 @@
                                 color="primary" 
                                 class="mt-6" 
                                 to="/">
-                                    Home
+                                    Return Home
                             </v-btn>
                         </div>
                     </v-sheet>
@@ -394,7 +281,7 @@
                                                                 color="secondary"
                                                                 style="cursor: pointer;"
                                                                 :key="`lesson-${index}`"
-                                                                :input-value="!test && activeLesson && (activeLesson.title === lesson.title)"
+                                                                :input-value="activeLesson && (activeLesson.title === lesson.title)"
                                                                 @click="setActiveLesson(lesson)"
                                                                 inactive>
                                                                     <v-row 
@@ -403,55 +290,23 @@
                                                                             <v-col cols="1">
                                                                                 <v-icon
                                                                                     :color="!lesson.isCompleted ? 'grey' : 'secondary'"
-                                                                                    small>mdi-check-circle</v-icon>
+                                                                                    small>
+                                                                                        mdi-check-circle
+                                                                                </v-icon>
                                                                             </v-col>
                                                                             <v-col cols="1">
-                                                                                <v-icon 
-                                                                                    v-if="lesson.contentType === 'video'"
-                                                                                    small>
-                                                                                        mdi-video
-                                                                                </v-icon>
-                                                                                <v-icon 
-                                                                                    v-if="lesson.contentType === 'html'" 
-                                                                                    small>
-                                                                                        mdi-file-document
-                                                                                </v-icon>
+                                                                                <v-icon small>{{ lessonContentIcons[lesson.contentType] }}</v-icon>
                                                                             </v-col>
                                                                             <v-col cols="7">
                                                                                 <div>{{ lesson.title }}</div>
                                                                             </v-col>
                                                                             <v-col cols="3">
-                                                                                <div class="text-right">{{ computeLessonDurationInSeconds(lesson) | toTimer }}</div>
+                                                                                <div class="text-right">{{ lesson.durationInSeconds | toTimer }}</div>
                                                                             </v-col>
                                                                     </v-row>
                                                             </v-list-item>
                                                             <v-divider :key="`section-divider-${index}`"/>
                                                     </template>
-                                                    <v-list-item 
-                                                        color="secondary"
-                                                        style="cursor: pointer;"
-                                                        :input-value="test && activeModule && (activeModule.name === courseModule.name)"
-                                                        @click="setTest(courseModule.test)"
-                                                        inactive>
-                                                            <v-row 
-                                                                align="center" 
-                                                                class="text-caption">
-                                                                    <v-col cols="1">
-                                                                        <v-icon
-                                                                            :color="!courseModule.test.isTaken ? 'grey' : 'secondary'"
-                                                                            small>mdi-check-circle</v-icon>
-                                                                    </v-col>
-                                                                    <v-col cols="1">
-                                                                        <v-icon small>mdi-help-circle</v-icon>
-                                                                    </v-col>
-                                                                    <v-col cols="7">
-                                                                        <div>Test: {{ courseModule.name }}</div>
-                                                                    </v-col>
-                                                                    <v-col cols="3">
-                                                                        <div class="text-right">{{ computeTestDurationInSeconds(courseModule.test) | toTimer }}</div>
-                                                                    </v-col>
-                                                            </v-row>
-                                                    </v-list-item>
                                             </v-list>
                                 </v-expansion-panel-content>
                         </v-expansion-panel>
@@ -482,18 +337,14 @@
         },
         lesson: {
             title: '',
-            durationInMinutes: null,
-            canBePreviewed: null,
+            durationInSeconds: null,
             contentType: '',
-            video: null,
-            html: '',
+            content: null,
         },
         module: {
             name: '',
             lessons: [],
-            test: {
-                questions: [],
-            },
+            canBePreviewed: false,
         },
         question: {
             question: '',
@@ -508,12 +359,6 @@
             secondsRemaining: 0,
             secondsRemainingTimerId: null,
         },
-        testResult: {
-            correctCount: 0,
-            incorrectCount: 0,
-            skippedCount: 0,
-            missedCount: 0,
-        },
         playingVideo: {
             currentTime: 0,
             watchedTime: 0,
@@ -525,20 +370,21 @@
         name: 'Course',
         data() {
             return {
+                lessonContentIcons: {
+                    html: 'mdi-file-document',
+                    video: 'mdi-video',
+                    questions: 'mdi-help-circle',
+                },
                 course: cloneDeep(init.course),
                 activeModule: cloneDeep(init.module),
                 activeLesson: cloneDeep(init.lesson),
                 activeQuestion: cloneDeep(init.question),
-                test: null,
                 answers: [],
                 isShowingAnswersWithExplanation: false,
-                testResult: cloneDeep(init.testResult),
-                testIsCompleted: false,
                 isShowingCourseCompleteDialog: false,
                 modulesInView: [0],
                 lessonTimer: cloneDeep(init.timer),
                 questionTimer: cloneDeep(init.timer),
-                isShowingMustCompleteModuleDialog: false,
                 playingVideo: cloneDeep(init.playingVideo),
             };
         },
@@ -550,25 +396,16 @@
                 'company',
             ]),
             answersAreCorrect() {
-                if (this.activeQuestion?.answers && this.answers) {
-                    return Array.equalElements(this.activeQuestion.answers, this.answers);
+                return Array.equalElements(this.activeQuestion.answers, this.answers);
+            },
+            percentageQuestionsAnswered() {
+                if (this.activeLesson.contentType === 'questions') {
+                    const questions = this.activeLesson.content.questions;
+
+                    return ((questions.indexOf(this.activeQuestion) + 1) / questions.length) * 100;
                 }
 
                 return null;
-            },
-            testProgress() {
-                if (this.activeQuestion) {
-                    return ((this.test.questions.indexOf(this.activeQuestion) + 1) / this.test.questions.length) * 100;
-                }
-
-                if (this.testIsCompleted) {
-                    return 100;
-                }
-
-                return 0;
-            },
-            testScore() {
-                return (this.testResult.correctCount / this.test.questions.length * 100);
             },
             accessBlocked() {
                 if (this.company?.accessBlockedAt) {
@@ -590,9 +427,13 @@
         },
         watch: {
             course: {
-                immediate: true,
                 handler(course) {
-                    this.setActiveLesson(course.modules[0]?.lessons[0]);
+                    const activeLesson = course.modules[0]?.lessons[0];
+
+                    if (activeLesson) {
+                        this.setActiveLesson(activeLesson);
+                    }
+
                     this.setLearningHistory();
                 },
             },
@@ -602,34 +443,22 @@
                     this.setLearningHistory();
                 }
             },
+            accessBlocked(accessBlocked) {
+                if (accessBlocked) {
+                    this.pauseTimer('lessonTimer');
+                    this.pauseTimer('questionTimer');
+                }
+            }
         },
         methods: {
             setLearningHistory() {
-                const hasTakenTest = test => {
-                    let taken = false;
-
-                    const enrolledCourse = this.employee.enrolledCourses[this.course.id];
-
-                    if (enrolledCourse) {
-                        const courseModule = this.findTestModule(test);
-
-                        const moduleTaken = enrolledCourse[courseModule.name];
-
-                        if (moduleTaken) {
-                            taken = moduleTaken.testScoreHistory.length > 0;
-                        }
-                    }
-
-                    return taken;
-                };
-
                 const hasCompletedLesson = lesson => {
                     let completed = false;
 
                     const enrolledCourse = this.employee.enrolledCourses[this.course.id];
 
                     if (enrolledCourse) {
-                        const courseModule = this.findLessonModule(lesson);
+                        const courseModule = this.getModuleForLesson(lesson);
 
                         const moduleTaken = enrolledCourse[courseModule.name];
 
@@ -642,7 +471,7 @@
                 };
 
                 const computeModuleCompletionPercentage = courseModule => {
-                    let completedLessonsCount = courseModule.lessons.reduce((count, lesson) => {
+                    const completedLessonsCount = courseModule.lessons.reduce((count, lesson) => {
                         if (lesson.isCompleted) {
                             return count + 1;
                         }
@@ -650,20 +479,12 @@
                         return count;
                     }, 0);
 
-                    if (courseModule.test.isTaken) {
-                        completedLessonsCount++;
-                    }
-
                     return (completedLessonsCount / courseModule.lessons.length * 100);
                 };
 
                 this.course
                     .modules
                     .forEach(courseModule => {
-                        if (!courseModule.test.isTaken) {
-                            this.$set(courseModule.test, 'isTaken', hasTakenTest(courseModule.test));
-                        }
-
                         courseModule.lessons.forEach(lesson => {
                             if (!lesson.isCompleted) {
                                 this.$set(lesson, 'isCompleted', hasCompletedLesson(lesson));
@@ -674,51 +495,18 @@
                     });
             },
             advance() {
-                if (this.activeLesson) {
+                const advanceToNextLesson = () => {
                     this.markActiveLessonCompleted();
-
+                    
                     const activeLessonIndex = this.activeModule.lessons.indexOf(this.activeLesson);
 
                     if (activeLessonIndex < (this.activeModule.lessons.length - 1)) {
                         const lesson = this.activeModule.lessons[activeLessonIndex + 1];
 
                         this.setActiveLesson(lesson);
-
-                        return;
                     }
                     
                     if (activeLessonIndex === (this.activeModule.lessons.length - 1)) {
-                        this.setTest(this.activeModule.test);
-
-                        return;
-                    }
-                }
-
-                if (this.test) {
-                    if (this.activeQuestion) {
-                        const activeQuestionIndex = this.test.questions.indexOf(this.activeQuestion);
-
-                        if (activeQuestionIndex < (this.test.questions.length - 1)) {
-                            const question = this.test.questions[activeQuestionIndex + 1];
-
-                            this.setActiveQuestion(question);
-
-                            return;
-                        }
-
-                        if (activeQuestionIndex === (this.test.questions.length - 1)) {
-                            if (!this.testIsCompleted) {
-                                this.addTestScore();
-
-                                this.setActiveQuestion(null);
-                                this.testIsCompleted = true;
-
-                                return;
-                            }
-                        }
-                    } 
-                    
-                    if (this.testIsCompleted) {
                         const activeModuleIndex = this.course.modules.indexOf(this.activeModule);
 
                         if (activeModuleIndex < (this.course.modules.length - 1)) {
@@ -728,16 +516,32 @@
                             const lesson = courseModule.lessons[0];
 
                             this.setActiveLesson(lesson);
-
-                            return;
                         }
                         
                         if (activeModuleIndex === (this.course.modules.length - 1)) {
                             this.isShowingCourseCompleteDialog = true;
-
-                            return;
                         }
                     }
+                };
+
+                if (this.activeLesson.contentType === 'video' || this.activeLesson.contentType === 'html') {
+                    advanceToNextLesson();
+                }
+
+                if (this.activeLesson.contentType === 'questions') {
+                    if (this.activeQuestion) {
+                        const activeQuestionIndex = this.activeLesson.content.questions.indexOf(this.activeQuestion);
+
+                        if (activeQuestionIndex < (this.activeLesson.content.questions.length - 1)) {
+                            const question = this.activeLesson.content.questions[activeQuestionIndex + 1];
+
+                            this.setActiveQuestion(question);
+                        }
+
+                        if (activeQuestionIndex === (this.activeLesson.content.questions.length - 1)) {
+                            advanceToNextLesson();
+                        }
+                    } 
                 }
             },
             async markActiveLessonCompleted() {
@@ -773,60 +577,6 @@
                     this.$store.commit('push_notification', { notification });
                 }
             },
-            async addTestScore() {
-                try {
-                    const testScore = { 
-                        courseId: this.course.id, 
-                        moduleName: this.activeModule.name,
-                        testScore: this.testScore 
-                    };
-
-                    const addEmployeeTestScore = firebase.functions()
-                                                            .httpsCallable('addEmployeeTestScore');
-
-                    await addEmployeeTestScore({ testScore });
-                } catch (error) {
-                    const notification = {
-                        message: error.message,
-                        context: 'error',
-                    };
-
-                    this.$store.commit('push_notification', { notification });
-                }
-            },
-            setTest(test) {
-                if (test) {
-                    const courseModule = this.findTestModule(test);
-
-                    if (courseModule.percentageCompleted < 100) {
-                        this.isShowingMustCompleteModuleDialog = true;
-
-                        return;
-                    }
-
-                    this.test = test;
-                    this.setActiveQuestion(test.questions[0]);
-                    this.setActiveModule(this.findTestModule(test));
-                    this.setActiveLesson(null);
-                } 
-                else {
-                    this.test = test;
-                    this.setActiveQuestion(null);
-                    this.testResult = cloneDeep(init.testResult);
-                    this.testIsCompleted = false;
-                }
-            },
-            retakeTest() {
-                const test = cloneDeep(this.test);
-
-                const unwatch = this.$watch('test', () => {
-                    unwatch();
-
-                    this.setTest(test);
-                });
-
-                this.setTest(null);
-            },
             setActiveQuestion(question) {
                 this.activeQuestion = question;
 
@@ -835,16 +585,10 @@
                 this.clearTimer('questionTimer');
 
                 if (question) {
-                    const advance = () => {
-                        this.testResult.missedCount++;
-
-                        this.advance();
-                    };
-
                     this.setTimer(
                         'questionTimer',
                         question.durationInSeconds,
-                        advance
+                        this.answerQuestion
                     );
                 }
             },
@@ -853,22 +597,23 @@
 
                 this.clearTimer('lessonTimer');
 
-                if (lesson) {
-                    if (lesson.contentType === 'html') {
-                        this.setTimer(
-                            'lessonTimer',
-                            this.computeLessonDurationInSeconds(lesson),
-                            this.advance
-                        );
-                    }
-
-                    if (lesson.contentType === 'video') {
-                        this.$nextTick(this.configureVideoPlayer);
-                    }
-
-                    this.setActiveModule(this.findLessonModule(lesson));
-                    this.setTest(null);
+                if (lesson.contentType === 'html') {
+                    this.setTimer(
+                        'lessonTimer',
+                        lesson.durationInSeconds,
+                        this.advance
+                    );
                 }
+
+                if (lesson.contentType === 'video') {
+                    this.$nextTick(this.configureVideoPlayer);
+                }
+
+                if (lesson.contentType === 'questions') {
+                    this.setActiveQuestion(lesson.content.questions[0]);
+                }
+
+                this.setActiveModule(this.getModuleForLesson(lesson));
             },
             setActiveModule(courseModule) {
                 this.activeModule = courseModule;
@@ -885,46 +630,22 @@
                             
                 this.modulesInView = [courseModuleIndex];
             },
-            findLessonModule(lesson) {
+            getModuleForLesson(lesson) {
                 return this.course.modules.find(courseModule => {
                     return courseModule.lessons.includes(lesson);
-                });
-            },
-            findTestModule(test) {
-                return this.course.modules.find(courseModule => {
-                    return (JSON.stringify(courseModule.test) === JSON.stringify(test));
                 });
             },
             answerQuestion() {
                 this.pauseTimer('questionTimer');
 
                 this.isShowingAnswersWithExplanation = true;
-
-                if (this.answersAreCorrect) {
-                    this.testResult.correctCount++;
-                } else {
-                    this.testResult.incorrectCount++;
-                }
-            },
-            computeLessonDurationInSeconds(lesson) {
-                const durationInSeconds = lesson.durationInMinutes * 60;
-
-                return Math.ceil(durationInSeconds);
             },
             computeCourseModuleDurationInSeconds(courseModule) {
                 const durationInSeconds = (courseModule.lessons.reduce((total, currentModule) => {
-                                            return total + (currentModule.durationInMinutes * 60);
-                                        }, 0))
-                            + this.computeTestDurationInSeconds(courseModule.test);
+                                            return total + currentModule.durationInSeconds;
+                                        }, 0));
 
-                return Math.ceil(durationInSeconds);
-            },
-            computeTestDurationInSeconds(test) {
-                const durationInSeconds = test.questions.reduce((total, currentQuestion) => {
-                                            return total + currentQuestion.durationInSeconds;
-                                        }, 0);
-
-                return Math.ceil(durationInSeconds);
+                return durationInSeconds;
             },
             setTimer(timerId, durationInSeconds, callbackFunction = null) {
                 this.clearTimer(timerId);

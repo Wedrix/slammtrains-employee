@@ -50,6 +50,21 @@ const authorizeGuest = (to, from, next) => {
   });
 };
 
+const verifyCourseExists = (to, from, next) => {
+  const courseId = to.params.courseId;
+
+  firebase.firestore()
+          .doc(`courses/${courseId}`)
+          .get()
+          .then(courseDocumentSnapshot => {
+            if (!courseDocumentSnapshot.data()) {
+              next('/error/404');
+            } else {
+              next();
+            }
+          });
+};
+
 const routes = [
   {
     path: '/auth',
@@ -69,6 +84,17 @@ const routes = [
     beforeEnter: authorizeGuest,
   },
   {
+    path: '/error',
+    component: PlainLayout,
+    children: [
+      {
+        path: '404',
+        name: '404',
+        component: () => import('@/views/pages/404.vue'),
+      },
+    ],
+  },
+  {
     path: '/',
     component: DashboardLayout,
     children: [
@@ -81,6 +107,7 @@ const routes = [
         path: '/courses/:courseId',
         name: 'Course',
         component: () => import('@/views/pages/Course.vue'),
+        beforeEnter: verifyCourseExists,
       },
     ],
     beforeEnter: authorize,

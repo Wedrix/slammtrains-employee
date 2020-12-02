@@ -90,18 +90,10 @@
         methods: {
             computeCourseModuleDurationInSeconds(courseModule) {
                 const durationInSeconds = (courseModule.lessons.reduce((total, currentModule) => {
-                                            return total + (currentModule.durationInMinutes * 60);
-                                        }, 0))
-                            + this.computeTestDurationInSeconds(courseModule.test);
+                                            return total + currentModule.durationInSeconds;
+                                        }, 0));
 
-                return Math.ceil(durationInSeconds);
-            },
-            computeTestDurationInSeconds(test) {
-                const durationInSeconds = test.questions.reduce((total, currentQuestion) => {
-                                            return total + currentQuestion.durationInSeconds;
-                                        }, 0);
-
-                return Math.ceil(durationInSeconds);
+                return durationInSeconds;
             },
             formatDate(timestamp) {
                 return moment(timestamp).format("DD/MM/YY");
