@@ -45,7 +45,11 @@ export default new Vuex.Store({
   getters: {
     courses(state) {
       if (state.company?.plan?.courses) {
-        return Array.purify(state.company.plan.courses);
+        const courses = state.company.plan.courses;
+
+        if (courses.every(course => typeof course !== 'string')) {
+          return Array.purify(courses);
+        }
       } 
 
       return [];

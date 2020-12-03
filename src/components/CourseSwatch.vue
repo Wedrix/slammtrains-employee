@@ -2,7 +2,7 @@
     <v-card
         class="rounded-lg">
             <v-img
-                :src="course.thumbnail ? course.thumbnail.src : ''"
+                :src="course.thumbnail.src"
                 height="150px">
                     <div v-if="isNew" class="lightbox fill-height" style="position:relative;">
                         <v-chip 
