@@ -427,10 +427,11 @@
         },
         watch: {
             course: {
+                deep: true,
                 handler(course) {
                     const activeLesson = course.modules[0]?.lessons[0];
 
-                    if (activeLesson) {
+                    if (activeLesson && (typeof activeLesson.content !== 'string')) {
                         this.setActiveLesson(activeLesson);
                     }
 
@@ -497,6 +498,8 @@
             advance() {
                 const advanceToNextLesson = () => {
                     this.markActiveLessonCompleted();
+
+                    this.setActiveQuestion(init.question);
                     
                     const activeLessonIndex = this.activeModule.lessons.indexOf(this.activeLesson);
 
@@ -529,19 +532,17 @@
                 }
 
                 if (this.activeLesson.contentType === 'questions') {
-                    if (this.activeQuestion) {
-                        const activeQuestionIndex = this.activeLesson.content.questions.indexOf(this.activeQuestion);
+                    const activeQuestionIndex = this.activeLesson.content.questions.indexOf(this.activeQuestion);
 
-                        if (activeQuestionIndex < (this.activeLesson.content.questions.length - 1)) {
-                            const question = this.activeLesson.content.questions[activeQuestionIndex + 1];
+                    if (activeQuestionIndex < (this.activeLesson.content.questions.length - 1)) {
+                        const question = this.activeLesson.content.questions[activeQuestionIndex + 1];
 
-                            this.setActiveQuestion(question);
-                        }
+                        this.setActiveQuestion(question);
+                    }
 
-                        if (activeQuestionIndex === (this.activeLesson.content.questions.length - 1)) {
-                            advanceToNextLesson();
-                        }
-                    } 
+                    if (activeQuestionIndex === (this.activeLesson.content.questions.length - 1)) {
+                        advanceToNextLesson();
+                    }
                 }
             },
             async markActiveLessonCompleted() {
