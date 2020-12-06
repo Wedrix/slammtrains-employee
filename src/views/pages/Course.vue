@@ -280,9 +280,10 @@
                                                             <v-list-item 
                                                                 color="secondary"
                                                                 style="cursor: pointer;"
+                                                                :style="{ 'pointer-events': lesson.isCompleted ? 'initial' : 'none' }"
                                                                 :key="`lesson-${index}`"
                                                                 :input-value="activeLesson && (activeLesson.title === lesson.title)"
-                                                                @click="setActiveLesson(lesson)"
+                                                                @click="setActiveModule(getLessonModule(lesson)); setActiveLesson(lesson);"
                                                                 inactive>
                                                                     <v-row 
                                                                         align="center" 
@@ -408,48 +409,40 @@
                 return null;
             },
             accessBlocked() {
-                if (this.company?.accessBlockedAt) {
+                if (this.company.accessToCoursesBlockedAt) {
                     return true;
                 }
 
-                if (this.company?.plan?.courses) {
-                    const courseId = this.$route.params.courseId;
+                if (this.company.plan.courses.every(course => typeof course !== 'string')) {
+                    if (this.company.plan.courses.length > 0) {
+                        const courseId = this.$route.params.courseId;
 
-                    const courseIds = this.company.plan.courses.map(course => {
-                        return course.id;
-                    });
+                        const courseIds = this.company.plan.courses.map(course => {
+                            return course.id;
+                        });
 
-                    return (!courseIds.includes(courseId));
+                        return (!courseIds.includes(courseId));
+                    }
                 }
 
                 return false;
             },
         },
         watch: {
-            course: {
+            employee: {
                 deep: true,
-                handler(course) {
-                    const activeLesson = course.modules[0]?.lessons[0];
-
-                    if (activeLesson && (typeof activeLesson.content !== 'string')) {
-                        this.setActiveLesson(activeLesson);
-                    }
-
+                handler() {
                     this.setLearningHistory();
                 },
             },
-            employee: {
-                deep: true,
-                handler(employee) {
-                    this.setLearningHistory();
+            accessBlocked: {
+                immediate: true,
+                handler(accessBlocked) {
+                    if (accessBlocked) {
+                        this.stopCourse();
+                    }
                 }
             },
-            accessBlocked(accessBlocked) {
-                if (accessBlocked) {
-                    this.pauseTimer('lessonTimer');
-                    this.pauseTimer('questionTimer');
-                }
-            }
         },
         methods: {
             setLearningHistory() {
@@ -459,9 +452,9 @@
                     const enrolledCourse = this.employee.enrolledCourses[this.course.id];
 
                     if (enrolledCourse) {
-                        const courseModule = this.getModuleForLesson(lesson);
+                        const lessonModule = this.getLessonModule(lesson);
 
-                        const moduleTaken = enrolledCourse[courseModule.name];
+                        const moduleTaken = enrolledCourse[lessonModule.name];
 
                         if (moduleTaken) {
                             completed = moduleTaken.completedLessons.includes(lesson.title);
@@ -496,11 +489,20 @@
                     });
             },
             advance() {
-                const advanceToNextLesson = () => {
-                    this.markActiveLessonCompleted();
-
-                    this.setActiveQuestion(init.question);
+                const markActiveLessonCompleted = () => {
+                    const activeModuleIndex = this.course.modules.indexOf(this.activeModule);
+                    const activeLessonIndex = this.course.modules[activeModuleIndex].lessons.indexOf(this.activeLesson);
                     
+                    const lesson = this.course.modules[activeModuleIndex].lessons[activeLessonIndex];
+
+                    this.$set(lesson, 'isCompleted', true);
+
+                    this.addEmployeeCompletedLesson(this.activeLesson);
+                };
+
+                const advanceToNextLesson = () => {
+                    markActiveLessonCompleted();
+
                     const activeLessonIndex = this.activeModule.lessons.indexOf(this.activeLesson);
 
                     if (activeLessonIndex < (this.activeModule.lessons.length - 1)) {
@@ -516,11 +518,12 @@
                             const courseModuleIndex = activeModuleIndex + 1;
 
                             const courseModule = this.course.modules[courseModuleIndex];
-                            const lesson = courseModule.lessons[0];
+                            this.setActiveModule(courseModule);
 
+                            const lesson = courseModule.lessons[0];
                             this.setActiveLesson(lesson);
                         }
-                        
+
                         if (activeModuleIndex === (this.course.modules.length - 1)) {
                             this.isShowingCourseCompleteDialog = true;
                         }
@@ -529,8 +532,10 @@
 
                 if (this.activeLesson.contentType === 'video' || this.activeLesson.contentType === 'html') {
                     advanceToNextLesson();
-                }
 
+                    return;
+                }
+                
                 if (this.activeLesson.contentType === 'questions') {
                     const activeQuestionIndex = this.activeLesson.content.questions.indexOf(this.activeQuestion);
 
@@ -538,27 +543,25 @@
                         const question = this.activeLesson.content.questions[activeQuestionIndex + 1];
 
                         this.setActiveQuestion(question);
+
+                        return;
                     }
 
                     if (activeQuestionIndex === (this.activeLesson.content.questions.length - 1)) {
                         advanceToNextLesson();
+
+                        return;
                     }
                 }
             },
-            async markActiveLessonCompleted() {
-                const activeModuleIndex = this.course.modules.indexOf(this.activeModule);
-                const activeLessonIndex = this.course.modules[activeModuleIndex].lessons.indexOf(this.activeLesson);
-                
-                const lesson = this.course.modules[activeModuleIndex].lessons[activeLessonIndex];
-
-                this.$set(lesson, 'isCompleted', true);
-                this.setLearningHistory();
-
+            async addEmployeeCompletedLesson(lesson) {
                 try {
+                    const lessonModule = this.getLessonModule(lesson);
+
                     const completedLesson = { 
                         courseId: this.course.id, 
-                        moduleName: this.activeModule.name,
-                        lessonTitle: this.activeLesson.title, 
+                        moduleName: lessonModule.name,
+                        lessonTitle: lesson.title, 
                     };
 
                     const addEmployeeCompletedLesson = firebase.functions()
@@ -567,15 +570,7 @@
                     await addEmployeeCompletedLesson({ completedLesson });
                 } 
                 catch (error) {
-                    this.$set(lesson, 'isCompleted', false);
-                    this.setLearningHistory();
-
-                    const notification = {
-                        message: error.message,
-                        context: 'error',
-                    };
-
-                    this.$store.commit('push_notification', { notification });
+                    this.addEmployeeCompletedLesson(lesson);
                 }
             },
             setActiveQuestion(question) {
@@ -594,9 +589,10 @@
                 }
             },
             setActiveLesson(lesson) {
-                this.activeLesson = lesson;
-
                 this.clearTimer('lessonTimer');
+                this.setActiveQuestion(init.question);
+                
+                this.activeLesson = lesson;
 
                 if (lesson.contentType === 'html') {
                     this.setTimer(
@@ -613,8 +609,6 @@
                 if (lesson.contentType === 'questions') {
                     this.setActiveQuestion(lesson.content.questions[0]);
                 }
-
-                this.setActiveModule(this.getModuleForLesson(lesson));
             },
             setActiveModule(courseModule) {
                 this.activeModule = courseModule;
@@ -631,7 +625,7 @@
                             
                 this.modulesInView = [courseModuleIndex];
             },
-            getModuleForLesson(lesson) {
+            getLessonModule(lesson) {
                 return this.course.modules.find(courseModule => {
                     return courseModule.lessons.includes(lesson);
                 });
@@ -647,6 +641,19 @@
                                         }, 0));
 
                 return durationInSeconds;
+            },
+            stopCourse() {
+                this.$watch('lessonTimer', lessonTimer => {
+                    if (lessonTimer.id) {
+                        this.clearTimer('lessonTimer');
+                    }
+                }, { deep: true, immediate: true });
+
+                this.$watch('questionTimer', questionTimer => {
+                    if (questionTimer.id) {
+                        this.clearTimer('questionTimer');
+                    }
+                }, { deep: true, immediate: true });
             },
             setTimer(timerId, durationInSeconds, callbackFunction = null) {
                 this.clearTimer(timerId);
@@ -708,17 +715,13 @@
 
                 if (timer.id) {
                     clearTimeout(timer.id);
-
-                    timer.id = null;
                 }
 
                 if (timer.secondsRemainingTimerId) {
                     clearInterval(timer.secondsRemainingTimerId);
-
-                    timer.secondsRemainingTimerId = null;
                 }
 
-                timer = null;
+                timer = cloneDeep(init.timer);
             },
             configureVideoPlayer() {
                 this.playingVideo = cloneDeep(init.playingVideo);
@@ -760,6 +763,26 @@
                     this.advance();
                 });
             }
+        },
+        mounted() {
+            const unwatch = this.$watch('course', course => {
+                const activeLesson = course.modules[0]?.lessons[0];
+
+                if (activeLesson && (typeof activeLesson.content !== 'string')) {
+                    this.setLearningHistory();
+
+                    const activeModule = this.getLessonModule(activeLesson);
+
+                    this.setActiveModule(activeModule);
+                    this.setActiveLesson(activeLesson);
+
+                    unwatch();
+                }
+
+            }, { deep: true, immediate: true });
+        },
+        beforeDestroy() {
+            this.stopCourse();
         },
         firestore() {
             const courseId = this.$route.params.courseId;

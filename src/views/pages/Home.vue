@@ -17,10 +17,10 @@
 
                             <v-spacer/>
 
-                            <v-avatar v-if="company"
+                            <v-avatar
                                 size="40"
                                 tile>
-                                <img :src="company.logo.src"/>
+                                    <img :src="company.logo.src"/>
                             </v-avatar>
 
                             <v-spacer/>

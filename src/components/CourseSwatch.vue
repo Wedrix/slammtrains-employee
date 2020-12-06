@@ -84,8 +84,15 @@
                 return courseModuleCount;
             },
             isNew() {
-                return moment().isBefore(moment(this.course.createdAt).add(30,'days'));
-            }
+                if (this.settings.daysToOld) {
+                    return moment().isBefore(moment(this.course.createdAt).add(this.settings.daysToOld,'days'));
+                }
+
+                return false;
+            },
+            settings() {
+                return this.$store.state.settings.course;
+            },
         },
         methods: {
             computeCourseModuleDurationInSeconds(courseModule) {

@@ -30,14 +30,30 @@ const init = {
     timeout: 3000,
     tag: '',
   },
-  company: null,
+  company: {
+    accessToCoursesBlockedAt: null,
+    plan: {
+      courses: [],
+    },
+    logo: {
+      src: '',
+    },
+  },
   employee: {
     name: '',
     uid: '',
     email: '',
     enrolledCourses: {},
-    company: null,
-  }
+  },
+  settings: {
+    business: {
+      name: '',
+      supportEmail: '',
+    },
+    course: {
+      daysToOld: null,
+    },
+  },
 };
 
 export default new Vuex.Store({
@@ -78,14 +94,19 @@ export default new Vuex.Store({
       const employee = (await resolveEmployee()).data.employee;
 
       const companyRef = await firebase.firestore()
-                                      .doc(`/companies/${employee.company.id}`);
+                                      .doc(`companies/${employee.company.id}`);
 
       const employeeRef = firebase.firestore()
-                                  .doc(`/companies/${employee.company.id}/employees/${employee.id}`);
+                                  .doc(`companies/${employee.company.id}/employees/${employee.id}`);
+      
+      const settingsRef = firebase.firestore()
+                                  .doc(`settings/index`);
 
       await bindFirestoreRef('employee', employeeRef, { wait: true });
   
       await bindFirestoreRef('company', companyRef, { wait: true });
+
+      await bindFirestoreRef('settings', settingsRef, { wait: true });
     }),
     clear({ commit }) {
       commit('clear_state');
