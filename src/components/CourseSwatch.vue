@@ -1,5 +1,8 @@
 <template>
     <v-card
+        outlined
+        elevation="1"
+        color="white"
         class="rounded-lg">
             <v-img
                 :src="course.thumbnail.src"
@@ -38,7 +41,7 @@
                     <v-chip
                         class="label mt-2"
                         color="white"
-                        text-color="primary"
+                        text-color="secondary"
                         label
                         small
                         :style="{ 'visibility': label ? 'visible' : 'hidden' }">

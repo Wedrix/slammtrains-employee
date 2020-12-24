@@ -280,7 +280,7 @@
                                                             <v-list-item 
                                                                 color="secondary"
                                                                 style="cursor: pointer;"
-                                                                :style="{ 'pointer-events': lesson.isCompleted ? 'initial' : 'none' }"
+                                                                :style="{ 'pointer-events': canTakeLesson(lesson) ? 'initial' : 'none' }"
                                                                 :key="`lesson-${index}`"
                                                                 :input-value="activeLesson && (activeLesson.title === lesson.title)"
                                                                 @click="setActiveModule(getLessonModule(lesson)); setActiveLesson(lesson);"
@@ -427,6 +427,9 @@
 
                 return false;
             },
+            courseIsSet() {
+                return (this.course && (JSON.stringify(this.course) !== JSON.stringify(init.course)));
+            }
         },
         watch: {
             employee: {
@@ -439,7 +442,17 @@
                 immediate: true,
                 handler(accessBlocked) {
                     if (accessBlocked) {
-                        this.stopCourse();
+                        this.$watch('lessonTimer', lessonTimer => {
+                            if (lessonTimer.id) {
+                                this.stopCourse();
+                            }
+                        }, { deep: true });
+
+                        this.$watch('questionTimer', questionTimer => {
+                            if (questionTimer.id) {
+                                this.stopCourse();
+                            }
+                        }, { deep: true });
                     }
                 }
             },
@@ -643,17 +656,8 @@
                 return durationInSeconds;
             },
             stopCourse() {
-                this.$watch('lessonTimer', lessonTimer => {
-                    if (lessonTimer.id) {
-                        this.clearTimer('lessonTimer');
-                    }
-                }, { deep: true, immediate: true });
-
-                this.$watch('questionTimer', questionTimer => {
-                    if (questionTimer.id) {
-                        this.clearTimer('questionTimer');
-                    }
-                }, { deep: true, immediate: true });
+                this.clearTimer('lessonTimer');
+                this.clearTimer('questionTimer');
             },
             setTimer(timerId, durationInSeconds, callbackFunction = null) {
                 this.clearTimer(timerId);
@@ -683,31 +687,29 @@
 
                 if (timer.id) {
                     clearTimeout(timer.id);
-
                     timer.id = null;
-                }
-
-                if (timer.secondsRemainingTimerId) {
+                    
                     clearInterval(timer.secondsRemainingTimerId);
-
                     timer.secondsRemainingTimerId = null;
                 }
             },
             resumeTimer(timerId) {
                 let timer = this[timerId];
 
-                timer.secondsRemainingTimerId = setInterval(() => {
-                    if (timer.secondsRemaining > 0) {
-                        timer.secondsRemaining--;
-                    } else {
-                        clearInterval(timer.secondsRemainingTimerId);
-                    }
-                }, 1000);
+                if ((timer.id === null) && (timer.secondsRemaining > 0)) {
+                    timer.secondsRemainingTimerId = setInterval(() => {
+                        if (timer.secondsRemaining > 0) {
+                            timer.secondsRemaining--;
+                        } else {
+                            clearInterval(timer.secondsRemainingTimerId);
+                        }
+                    }, 1000);
 
-                if (timer.callbackFunction) {
-                    timer.id = setTimeout(() => {
-                        timer.callbackFunction();
-                    }, (timer.secondsRemaining * 1000));
+                    if (timer.callbackFunction) {
+                        timer.id = setTimeout(() => {
+                            timer.callbackFunction();
+                        }, (timer.secondsRemaining * 1000));
+                    }
                 }
             },
             clearTimer(timerId) {
@@ -739,10 +741,6 @@
                             this.playingVideo.lastUpdated = 'currentTime';
                         }
                     }
-
-                    if (!document.hasFocus()) {
-                        video.pause();
-                    }
                 });
 
                 video.addEventListener('seeking', () => {
@@ -762,7 +760,79 @@
 
                     this.advance();
                 });
-            }
+            },
+            ensureLessonsAreTaken() {
+                let hidden, visibilityChange;
+
+                if (typeof document.hidden !== "undefined") { // Opera 12.10 and Firefox 18 and later support
+                    hidden = "hidden";
+                    visibilityChange = "visibilitychange";
+                } 
+                else if (typeof document.msHidden !== "undefined") {
+                    hidden = "msHidden";
+                    visibilityChange = "msvisibilitychange";
+                } 
+                else if (typeof document.webkitHidden !== "undefined") {
+                    hidden = "webkitHidden";
+                    visibilityChange = "webkitvisibilitychange";
+                }
+
+                const isVisibleHandler = () => {
+                    if (this.courseIsSet) {
+                        if (this.activeLesson.contentType === 'html') {
+                            this.resumeTimer('lessonTimer');
+                        }
+                    }
+                };
+
+                const isHiddenHandler = () => {
+                    if (this.activeLesson.contentType === 'video') {
+                        const video = this.$refs.video;
+
+                        if (video) {
+                            video.pause();
+                        }
+                    }
+
+                    if (this.activeLesson.contentType === 'html') {
+                        this.pauseTimer('lessonTimer');
+                    }
+                };
+
+                document.addEventListener(visibilityChange, () => {
+                    if (document[hidden]) {
+                        isHiddenHandler();
+                    }
+                    else {
+                        isVisibleHandler();
+                    }
+                }, false);
+
+                window.addEventListener('focus', () => {
+                    isVisibleHandler();
+                }, false);
+
+                window.addEventListener('blur', () => {
+                    isHiddenHandler();
+                }, false);
+            },
+            canTakeLesson(lesson) {
+                if (lesson.isCompleted) {
+                    return true;
+                }
+
+                const lessonModule = this.getLessonModule(lesson);
+
+                const lessonIndex = lessonModule.lessons.indexOf(lesson);
+
+                const previousLesson = lessonModule.lessons[lessonIndex - 1];
+
+                if (previousLesson && previousLesson.isCompleted) {
+                    return true;
+                }
+
+                return false;
+            },
         },
         mounted() {
             const unwatch = this.$watch('course', course => {
@@ -778,18 +848,19 @@
 
                     unwatch();
                 }
+                
+                this.ensureLessonsAreTaken();
 
             }, { deep: true, immediate: true });
-        },
-        beforeDestroy() {
-            this.stopCourse();
-        },
-        firestore() {
+
             const courseId = this.$route.params.courseId;
 
-            return {
-                course: firebase.firestore().doc(`courses/${courseId}`),
-            };
+            this.$bind('course', firebase.firestore().doc(`courses/${courseId}`), { wait: true });
+        },
+        beforeRouteLeave(to, from, next) {
+            this.stopCourse();
+
+            next();
         },
         filters: {
             toTimer(durationInSeconds) {
