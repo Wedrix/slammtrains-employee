@@ -315,7 +315,7 @@
         </v-navigation-drawer>
 
         <v-footer app inset color="white" style="border-top: thin solid rgba(0, 0, 0, 0.12) !important;">
-            <div class="text-caption">&#169;2020 Slamm Technologies</div>
+            <div class="text-caption">&#169;{{ year }} {{ settings.business.legalName }} All rights reserved.</div>
         </v-footer>
     </v-app>
 </template>
@@ -392,6 +392,7 @@
         computed: {
             ...mapState([
                 'employee',
+                'settings',
             ]),
             ...mapState([
                 'company',
@@ -429,6 +430,9 @@
             },
             courseIsSet() {
                 return (this.course && (JSON.stringify(this.course) !== JSON.stringify(init.course)));
+            },
+            year() {
+                return new Date().getFullYear();
             }
         },
         watch: {
@@ -856,6 +860,9 @@
             const courseId = this.$route.params.courseId;
 
             this.$bind('course', firebase.firestore().doc(`courses/${courseId}`), { wait: true });
+        },
+        created() {
+            this.$store.dispatch('initializeSettings');
         },
         beforeRouteLeave(to, from, next) {
             this.stopCourse();

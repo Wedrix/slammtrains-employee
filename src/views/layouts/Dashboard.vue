@@ -9,9 +9,12 @@
     export default {
         name: 'DashboardLayout',
         created() {
+            this.$store.dispatch('initializeSettings');
+
             firebase.auth().onAuthStateChanged(user => {
                 if (user) {
-                    this.$store.dispatch('initialize');
+                    this.$store.dispatch('initializeCompany');
+                    this.$store.dispatch('initializeEmployee');
                 } else {
                     this.$store.dispatch('clear');
                 }

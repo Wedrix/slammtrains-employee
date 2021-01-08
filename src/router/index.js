@@ -10,44 +10,46 @@ import 'firebase/firestore';
 
 Vue.use(VueRouter);
 
-const authorize = (to, from, next) => {
-  const redirect = () => {
-    if (firebase.auth().isSignInWithEmailLink(location.href)) {
-      next({ path: '/auth', query: to.query });
-    } else {
-      next('/auth/unauthorized');
-    }
-  };
-
-  firebase.auth().onAuthStateChanged(user => {
-    if (user) {
-      user.getIdTokenResult().then(result => {
-        if (result.claims.accessLevel === 'employee') {
-          next();
-        } else {
-          redirect();
-        }
-      });
-    } else {
-      redirect();
-    }
-  });
-};
-
-const authorizeGuest = (to, from, next) => {
-  firebase.auth().onAuthStateChanged(user => {
-    if (user) {
-      user.getIdTokenResult().then(result => {
-        if (result.claims.accessLevel === 'employee') {
+const makeGuard = (guardType) => {
+  return (to, from, next) => {
+    firebase.auth().onAuthStateChanged(async user => {
+      if (guardType === 'guest') {
+        if (user) {
           next('/');
-        } else {
+        }
+        else {
           next();
         }
-      });
-    } else {
-      next();
-    }
-  });
+      }
+
+      if (guardType === 'authenticated') {
+        if (user) {
+          next();
+        }
+        else {
+          next('/auth');
+        }
+      }
+
+      if (guardType === 'registered') {
+        if (user) {
+          const idToken = await user.getIdTokenResult();
+
+          const accessLevel = idToken.claims.accessLevel;
+
+          if (accessLevel === 'employee') {
+            next();
+          }
+          else {
+            next('/auth/unauthorized');
+          }
+        } 
+        else {
+          next('/auth');
+        }
+      }
+    });
+  };
 };
 
 const verifyCourseExists = (to, from, next) => {
@@ -74,14 +76,15 @@ const routes = [
         path: '/',
         name: 'Auth',
         component: () => import('@/views/pages/Auth.vue'),
+        beforeEnter: makeGuard('guest'),
       },
       {
         path: 'unauthorized',
         name: 'Unauthorized',
         component: () => import('@/views/pages/Unauthorized.vue'),
+        beforeEnter: makeGuard('authenticated'),
       },
     ],
-    beforeEnter: authorizeGuest,
   },
   {
     path: '/error',
@@ -110,7 +113,7 @@ const routes = [
         beforeEnter: verifyCourseExists,
       },
     ],
-    beforeEnter: authorize,
+    beforeEnter: makeGuard('registered'),
   },
 ];
 

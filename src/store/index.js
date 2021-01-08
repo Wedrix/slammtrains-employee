@@ -56,6 +56,10 @@ const init = {
   },
 };
 
+const match = (a, b) => {
+  return JSON.stringify(a) === JSON.stringify(b);
+};
+
 export default new Vuex.Store({
   state: cloneDeep(init),
   getters: {
@@ -87,26 +91,39 @@ export default new Vuex.Store({
     }
   },
   actions: {
-    initialize: firestoreAction(async ({ bindFirestoreRef }) => {
-      const resolveEmployee = firebase.functions()
-                                      .httpsCallable('resolveEmployee');
+    initializeSettings: firestoreAction(async ({ bindFirestoreRef, state }) => {
+      if (match(state.settings, init.settings)) {
+        const settingsRef = firebase.firestore()
+                                    .doc(`settings/index`);
 
-      const employee = (await resolveEmployee()).data.employee;
-
-      const companyRef = await firebase.firestore()
-                                      .doc(`companies/${employee.company.id}`);
-
-      const employeeRef = firebase.firestore()
-                                  .doc(`companies/${employee.company.id}/employees/${employee.id}`);
-      
-      const settingsRef = firebase.firestore()
-                                  .doc(`settings/index`);
-
-      await bindFirestoreRef('employee', employeeRef, { wait: true });
+        await bindFirestoreRef('settings', settingsRef, { wait: true });
+      }
+    }),
+    initializeEmployee: firestoreAction(async ({ bindFirestoreRef, state }) => {
+      if (match(state.employee, init.employee)) {
+        const resolveEmployee = firebase.functions()
+                                        .httpsCallable('resolveEmployee');
   
-      await bindFirestoreRef('company', companyRef, { wait: true });
-
-      await bindFirestoreRef('settings', settingsRef, { wait: true });
+        const employee = (await resolveEmployee()).data.employee;
+  
+        const employeeRef = firebase.firestore()
+                                    .doc(`companies/${employee.company.id}/employees/${employee.id}`);
+  
+        await bindFirestoreRef('employee', employeeRef, { wait: true });
+      }
+    }),
+    initializeCompany: firestoreAction(async ({ bindFirestoreRef, state }) => {
+      if (match(state.company, init.company)) {
+        const resolveEmployee = firebase.functions()
+                                        .httpsCallable('resolveEmployee');
+  
+        const employee = (await resolveEmployee()).data.employee;
+  
+        const companyRef = firebase.firestore()
+                                    .doc(`companies/${employee.company.id}`);
+    
+        await bindFirestoreRef('company', companyRef, { wait: true });
+      }
     }),
     clear({ commit }) {
       commit('clear_state');
