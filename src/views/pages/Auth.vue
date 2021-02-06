@@ -184,7 +184,6 @@
             },
             async signIn(email) {
                 this.loading = true;
-                this.auth.isAuthenticating = true;
 
                 try {
                     await firebase.auth().signInWithEmailLink(email, location.href);
@@ -196,7 +195,6 @@
                     };
                 }
 
-                this.auth.isAuthenticating = false;
                 this.loading = false;
             },
             setTimer(timer, durationInSeconds, callbackFunction = null) {

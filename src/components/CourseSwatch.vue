@@ -3,7 +3,9 @@
         outlined
         elevation="1"
         color="white"
-        class="rounded-lg">
+        class="rounded-lg"
+        active-class=""
+        @click="$emit('click')">
             <v-img
                 :src="course.thumbnail.src"
                 height="150px">
@@ -21,12 +23,9 @@
             </v-img>
 
             <v-card-title>
-                <router-link 
-                    class="d-inline-block text-truncate" 
-                    style="text-decoration:none;" 
-                    :to="`courses/${course.id}`">
-                        {{ course.name }}
-                </router-link>
+                <div class="d-inline-block text-truncate primary--text">
+                    {{ course.name }}
+                </div>
             </v-card-title>
 
             <v-card-subtitle class="pt-1">

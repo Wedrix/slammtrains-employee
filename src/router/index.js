@@ -31,7 +31,7 @@ const makeGuard = (guardType) => {
         }
       }
 
-      if (guardType === 'registered') {
+      if (guardType === 'authenticatedEmployee') {
         if (user) {
           const idToken = await user.getIdTokenResult();
 
@@ -52,19 +52,13 @@ const makeGuard = (guardType) => {
   };
 };
 
-const verifyCourseExists = (to, from, next) => {
+const verifyCourseExists = async (to) => {
   const courseId = to.params.courseId;
 
-  firebase.firestore()
-          .doc(`courses/${courseId}`)
-          .get()
-          .then(courseDocumentSnapshot => {
-            if (!courseDocumentSnapshot.data()) {
-              next('/error/404');
-            } else {
-              next();
-            }
-          });
+  const courseDocumentSnapshot = await firebase.firestore()
+                                              .doc(`courses/${courseId}`)
+                                              .get();
+  return !!courseDocumentSnapshot.data();
 };
 
 const routes = [
@@ -105,15 +99,26 @@ const routes = [
         path: '/',
         name: 'Home',
         component: () => import('@/views/pages/Home.vue'),
-      },
-      {
-        path: '/courses/:courseId',
-        name: 'Course',
-        component: () => import('@/views/pages/Course.vue'),
-        beforeEnter: verifyCourseExists,
-      },
+      }
     ],
-    beforeEnter: makeGuard('registered'),
+    beforeEnter: makeGuard('authenticatedEmployee'),
+  },
+  {
+    path: '/courses/:courseId',
+    name: 'Course',
+    component: () => import('@/views/pages/Course.vue'),
+    beforeEnter: async (to, from, next) => {
+      const courseExists = await verifyCourseExists(to);
+
+      if (courseExists) {
+        const authGuard = makeGuard('authenticatedEmployee');
+
+        authGuard(to, from, next);
+      }
+      else {
+        next('/error/404');
+      }
+    },
   },
 ];
 
