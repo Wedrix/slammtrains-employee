@@ -25,9 +25,10 @@
                     </div>
                     <div 
                         class="d-flex align-center primary--text mx-6" 
-                        style="cursor:pointer;">
+                        style="cursor:pointer;"
+                        @click="isShowingReviewDialog = true;">
                             <v-icon size="22" class="mr-1" color="blue-grey lighten-2">mdi-star</v-icon>
-                            Leave a review
+                            {{ review.id ? 'Update your review' : 'Leave a review' }}
                     </div>
                     <div class="d-flex align-center primary--text mx-6">
                         <v-progress-circular
@@ -425,11 +426,110 @@
                     </v-form>
                 </v-card>
         </v-dialog>
+
+        <v-dialog
+            v-model="isShowingReviewDialog"
+            max-width="600"
+            persistent>
+                <v-card>
+                    <v-form v-if="review.id" @submit.prevent="updateReview()" ref="updateReviewForm">
+                        <v-card-title>
+                            <span class="headline primary--text">Update Your Review</span>
+                            <v-spacer/>
+                            <v-btn @click="isShowingReviewDialog = !isShowingReviewDialog" color="primary" icon small>
+                                <v-icon>mdi-close</v-icon>
+                            </v-btn>
+                        </v-card-title>
+                        <v-card-text>
+                            <v-row>
+                                <v-col cols="12">
+                                    <v-input
+                                        v-model="review.rating"
+                                        :rules="[required, min(1)]"
+                                        label="Rating"
+                                        required>
+                                            <v-rating class="ml-4"
+                                                v-model="review.rating"
+                                                color="amber lighten-1"
+                                                background-color="grey darken-1"
+                                                x-large
+                                                hover/>
+                                    </v-input>
+                                </v-col>
+                                <v-col cols="12">
+                                    <v-textarea 
+                                        v-model="review.body"
+                                        :rules="[required]"
+                                        required
+                                        label="Review Body"
+                                        rows="3"/>
+                                </v-col>
+                            </v-row>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer/>
+                            <v-btn 
+                                color="primary" 
+                                type="submit" 
+                                dark 
+                                :loading="isUpdatingReview">
+                                    Update Review
+                            </v-btn>
+                        </v-card-actions>
+                    </v-form>
+                    <v-form v-else @submit.prevent="leaveAReview()" ref="leaveAReviewForm">
+                        <v-card-title>
+                            <span class="headline primary--text">Leave A Review</span>
+                            <v-spacer/>
+                            <v-btn @click="isShowingReviewDialog = !isShowingReviewDialog" color="primary" icon small>
+                                <v-icon>mdi-close</v-icon>
+                            </v-btn>
+                        </v-card-title>
+                        <v-card-text>
+                            <v-row>
+                                <v-col cols="12">
+                                    <v-input
+                                        v-model="review.rating"
+                                        :rules="[required, min(1)]"
+                                        label="Rating"
+                                        required>
+                                            <v-rating class="ml-4"
+                                                v-model="review.rating"
+                                                color="amber lighten-1"
+                                                background-color="grey darken-1"
+                                                x-large
+                                                hover/>
+                                    </v-input>
+                                </v-col>
+                                <v-col cols="12">
+                                    <v-textarea 
+                                        v-model="review.body"
+                                        :rules="[required]"
+                                        required
+                                        label="Review"
+                                        rows="3"/>
+                                </v-col>
+                            </v-row>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer/>
+                            <v-btn 
+                                color="primary" 
+                                type="submit" 
+                                dark 
+                                :loading="isLeavingAReview">
+                                    Leave Review
+                            </v-btn>
+                        </v-card-actions>
+                    </v-form>
+                </v-card>
+        </v-dialog>
     </v-app>
 </template>
 
 <script>
     import firebase from '@/firebase';
+    import 'firebase/firestore';
     import 'firebase/functions';
 
     import Notification from '@/components/Notification.vue';
@@ -439,7 +539,7 @@
     import 'quill/dist/quill.snow.css';
     import { quillEditor } from 'vue-quill-editor';
 
-    import { mapState } from 'vuex';
+    import { mapState, mapGetters } from 'vuex';
     import { cloneDeep } from 'lodash';
 
     const init = {
@@ -481,6 +581,10 @@
         askedQuestion: {
             body: '',
             referencesActiveLesson: true,
+        },
+        review: {
+            body: '',
+            rating: 0,
         }
     };
 
@@ -513,6 +617,10 @@
                 isShowingAskAQuestionDialog: false,
                 isAskingAQuestion: false,
                 askedQuestion: cloneDeep(init.askedQuestion),
+                isShowingReviewDialog: false,
+                isLeavingAReview: false,
+                review: cloneDeep(init.review),
+                isUpdatingReview: false,
                 quillConfig: {
                     modules: {
                         toolbar: [
@@ -538,10 +646,11 @@
             ...mapState([
                 'employee',
                 'settings',
-            ]),
-            ...mapState([
                 'company',
             ]),
+            ...mapGetters({
+                stateIsInitialized: 'initialized',
+            }),
             questionAnswered() {
                 return this.answers.length > 0;
             },
@@ -617,12 +726,13 @@
                 return 0;
             },
             initialized() {
-                return this.course.id && this.employee.id;
+                return this.courseIsSet && this.stateIsInitialized;
             },
             aDialogIsOpen() {
                 return this.isShowingCourseCompleteDialog
                     || this.isShowingMustWatchVideoPrompt
-                    || this.isShowingAskAQuestionDialog;
+                    || this.isShowingAskAQuestionDialog
+                    || this.isShowingReviewDialog;
             }
         },
         watch: {
@@ -653,9 +763,32 @@
                         this.resumeActiveLesson();
                     }
                 }
-            },
+            }
         },
         methods: {
+            async loadCourse() {
+                const courseId = this.$route.params.courseId;
+
+                const courseRef = firebase.firestore().doc(`courses/${courseId}`);
+
+                await this.$bind('course', courseRef, { wait: true })
+                        .then(() => this.$unbind('course', false));
+                
+                const activeLesson = this.course.modules[0]?.lessons[0];
+
+                if (activeLesson && (typeof activeLesson.content !== 'string')) {
+                    const activeModule = this.getLessonModule(activeLesson);
+
+                    this.setActiveModule(activeModule);
+                    this.setActiveLesson(activeLesson);
+                }
+                
+                this.ensureLessonsAreTaken();
+            },
+            stopCourse() {
+                this.clearTimer('lessonTimer');
+                this.clearTimer('questionTimer');
+            },
             setLearningHistory() {
                 const hasCompletedLesson = lesson => {
                     let completed = false;
@@ -861,10 +994,6 @@
 
                 return durationInSeconds;
             },
-            stopCourse() {
-                this.clearTimer('lessonTimer');
-                this.clearTimer('questionTimer');
-            },
             setTimer(timerId, durationInSeconds, callbackFunction = null) {
                 this.clearTimer(timerId);
 
@@ -1044,7 +1173,11 @@
                 const askedQuestionData = {
                     body: this.askedQuestion.body,
                     referencedLesson: this.askedQuestion.referencesActiveLesson 
-                        ? `${this.activeLesson.title} | ${this.activeModule.name} ! ${this.course.name}`
+                        ? {
+                            courseName: this.course.name,
+                            moduleName: this.activeModule.name,
+                            lessonTitle: this.activeLesson.title,
+                        }
                         : null,
                 };
                 
@@ -1064,7 +1197,8 @@
                     this.askedQuestion = cloneDeep(init.askedQuestion);
                     this.$refs.askAQuestionForm.resetValidation();
                     this.isShowingAskAQuestionDialog = false;
-                } catch (error) {
+                } 
+                catch (error) {
                     const notification = {
                         message: error.message,
                         context: 'error',
@@ -1074,6 +1208,120 @@
                 }
 
                 this.isAskingAQuestion = false;
+            },
+            async leaveAReview() {
+                if (!this.$refs.leaveAReviewForm.validate()) {
+                    return;
+                }
+
+                this.isLeavingAReview = true;
+
+                const reviewData = {
+                    body: this.review.body,
+                    rating: this.review.rating,
+                    courseId: this.course.id,
+                };
+                
+                try {
+                    const addCourseReview = firebase.functions()
+                                                    .httpsCallable('addCourseReview');
+
+                    await addCourseReview({ reviewData });
+
+                    const notification = {
+                        message: 'Review submission successful',
+                        context: 'success',
+                    };
+
+                    this.$store.commit('push_notification', { notification });
+                    
+                    this.review = cloneDeep(init.review);
+                    this.$refs.leaveAReviewForm.resetValidation();
+                    this.isShowingReviewDialog = false;
+
+                    await this.loadReview();
+                } 
+                catch (error) {
+                    const notification = {
+                        message: error.message,
+                        context: 'error',
+                    };
+
+                    this.$store.commit('push_notification', { notification });
+                }
+
+                this.isLeavingAReview = false;
+            },
+            async updateReview() {
+                if (!this.$refs.updateReviewForm.validate()) {
+                    return;
+                }
+
+                this.isUpdatingReview = true;
+
+                const reviewData = {
+                    body: this.review.body,
+                    rating: this.review.rating,
+                    courseId: this.course.id,
+                };
+                
+                try {
+                    const updateCourseReview = firebase.functions()
+                                                    .httpsCallable('updateCourseReview');
+
+                    await updateCourseReview({ reviewData });
+
+                    const notification = {
+                        message: 'Review update successful',
+                        context: 'success',
+                    };
+
+                    this.$store.commit('push_notification', { notification });
+                    
+                    this.$refs.updateReviewForm.resetValidation();
+                    this.isShowingReviewDialog = false;
+
+                    await this.loadReview();
+                } 
+                catch (error) {
+                    const notification = {
+                        message: error.message,
+                        context: 'error',
+                    };
+
+                    this.$store.commit('push_notification', { notification });
+                }
+
+                this.isUpdatingReview = false;
+            },
+            async loadReview() {
+                const courseId = this.$route.params.courseId;
+
+                const employeeRef = firebase.firestore()
+                                            .doc(`companies/${this.company.id}/employees/${this.employee.id}`);
+
+                const review = await firebase.firestore()
+                                            .collection(`courses/${courseId}/reviews`)
+                                            .where('employee', '==', employeeRef)
+                                            .get()
+                                            .then(querySnapshot => {
+                                                if (!querySnapshot.empty) {
+                                                    const docs = []; 
+                                                    
+                                                    querySnapshot.forEach(doc => {
+                                                        docs.push({
+                                                            id: doc.id,
+                                                            ...doc.data(),
+                                                        });
+                                                    });
+
+                                                    return docs[0];
+                                                }
+
+                                                return init.review;
+                                            });
+
+                this.review = review;
             }
         },
         filters: {
@@ -1096,25 +1344,13 @@
             }
         },
         mounted() {
-            const courseId = this.$route.params.courseId;
-
-            this.$bind('course', firebase.firestore().doc(`courses/${courseId}`), { wait: true })
-                .then(() => {
-                    const activeLesson = this.course.modules[0]?.lessons[0];
-
-                    if (activeLesson && (typeof activeLesson.content !== 'string')) {
-                        const activeModule = this.getLessonModule(activeLesson);
-
-                        this.setActiveModule(activeModule);
-                        this.setActiveLesson(activeLesson);
-                    }
-                    
-                    this.ensureLessonsAreTaken();
-                });
+            this.loadCourse();
 
             const unwatch = this.$watch('initialized', initialized => {
                 if (initialized) {
                     this.setLearningHistory();
+
+                    this.loadReview();
 
                     unwatch();
                 }

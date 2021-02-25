@@ -74,6 +74,11 @@ export default new Vuex.Store({
 
       return [];
     },
+    initialized(state) {
+      return !match(state.company, init.company)
+            && !match(state.employee, init.employee)
+            && !match(state.settings, init.settings);
+    }
   },
   mutations: {
     ...vuexfireMutations,

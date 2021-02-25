@@ -114,6 +114,7 @@
 
 <script>
     import firebase from '@/firebase';
+    import 'firebase/firestore';
     import 'firebase/auth';
 
     import Notification from '@/components/Notification.vue';

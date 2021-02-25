@@ -23,13 +23,12 @@
                             <div class="d-flex text-caption">
                                 <div class="d-flex align-center pr-4">
                                     <template v-if="rating">
-                                        <span class="pr-1">{{ rating }}</span>
-                                        <v-rating :v-model="rating" 
-                                            background-color="amber darken-1" 
-                                            color="amber lighten-1" 
+                                        <v-rating :value="rating" 
+                                            color="amber lighten-1"
+                                            background-color="grey darken-1"
                                             dense 
                                             readonly/>
-                                        <span class="pl-1">({{ course.reviewsSumTotal }} reviews)</span>
+                                        <span class="pl-1">({{ course.reviewsSumTotal }} review)</span>
                                     </template>
                                     <template v-else>
                                         <v-rating :value="0" 
@@ -143,7 +142,12 @@
                 <v-tab-item>
                     <div class="pa-6">{{ course.description }}</div>
                 </v-tab-item>
-                <v-tab-item></v-tab-item>
+                <v-tab-item>
+                    <template v-for="(review, index) in reviews">
+                        <review :key="review.id" :review="review"/>
+                        <v-divider v-if="(index + 1) !== reviews.length" :key="index"/>
+                    </template>
+                </v-tab-item>
             </v-tabs-items>
 
             <v-divider/>
@@ -151,11 +155,19 @@
 </template>
 
 <script>
+    import firebase from '@/firebase';
+    import 'firebase/firestore';
+
     import { mapState } from 'vuex';
+
+    import Review from './Review';
 
     export default {
         name: 'CourseOverview',
         props: ['course'],
+        components: {
+            Review,
+        },
         data() {
             return {
                 tab: 0,
@@ -165,6 +177,7 @@
                     questions: 'mdi-help-circle',
                 },
                 expandedModules: [0],
+                reviews: [],
             };
         },
         computed: {
@@ -200,7 +213,7 @@
                 return 0;
             },
             rating() {
-                if (this.reviewsSumTotal > 0) {
+                if (this.course.reviewsSumTotal > 0) {
                     return (this.course.ratingsSumTotal / this.course.reviewsSumTotal).toFixed(1);
                 }
 
@@ -263,15 +276,20 @@
 
                 return durationInSeconds;
             },
-            expandAllModules () {
+            expandAllModules() {
                 this.expandedModules = [...Array(this.course.modules).keys()].map((k, i) => i)
             },
-            collapseAllModules () {
+            collapseAllModules() {
                 this.expandedModules = []
             },
+            loadReviews() {
+                this.$bind('reviews', firebase.firestore().collection(`courses/${this.course.id}/reviews`));
+            }
         },
         mounted() {
             this.setLearningHistory();
+
+            this.loadReviews();
         },
         filters: {
             toTimer(durationInSeconds) {
